@@ -16,7 +16,8 @@ export const SubmitButton = () => {
   const handleSubmit = async () => {
     try {
       // const response = await fetch('http://localhost:8000/pipelines/parse', {
-      const response = await fetch(`${api}/pipelines/parse`, {
+      const apiUrl = api?.endsWith("/") ? api.slice(0, -1) : api;
+      const response = await fetch(`${apiUrl}/pipelines/parse`, {
         // Done this to deploy on render, this env is only present in the production build
         method: "POST",
         headers: {
@@ -28,11 +29,56 @@ export const SubmitButton = () => {
         }),
       });
 
+      // Get response text first (can only read body once)
+      const text = await response.text();
+
       if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
+        // Try to get error message from response
+        const contentType = response.headers.get("content-type");
+        let errorMessage = `HTTP error! status: ${response.status}`;
+
+        if (text && text.trim().length > 0) {
+          if (contentType && contentType.includes("application/json")) {
+            try {
+              const errorData = JSON.parse(text);
+              errorMessage =
+                errorData.detail || errorData.message || errorMessage;
+            } catch (e) {
+              // If JSON parsing fails, use text as is
+              errorMessage = text.substring(0, 200);
+            }
+          } else {
+            errorMessage = text.substring(0, 200);
+          }
+        } else {
+          errorMessage = response.statusText || errorMessage;
+        }
+
+        throw new Error(errorMessage);
       }
 
-      const data = await response.json();
+      // Check if response has content
+      if (!text || text.trim().length === 0) {
+        throw new Error("Empty response from server");
+      }
+
+      // Check content type
+      const contentType = response.headers.get("content-type");
+      if (!contentType || !contentType.includes("application/json")) {
+        throw new Error(
+          `Expected JSON response but got: ${
+            contentType || "unknown"
+          }. Response: ${text.substring(0, 200)}`
+        );
+      }
+
+      // Parse JSON
+      let data;
+      try {
+        data = JSON.parse(text);
+      } catch (parseError) {
+        throw new Error(`Invalid JSON response: ${text.substring(0, 200)}`);
+      }
 
       // Display alert with results
       const message = `
@@ -52,9 +98,30 @@ ${
       alert(message);
     } catch (error) {
       console.error("Error submitting pipeline:", error);
-      alert(
-        `Error submitting pipeline: ${error.message}\n\nMake sure the backend is running on port 8000.`
-      );
+      console.error("API URL:", api);
+      console.error("Full error:", error);
+
+      let errorMsg = `Error submitting pipeline: ${error.message}`;
+
+      // Add helpful hints based on error type
+      if (
+        error.message.includes("Failed to fetch") ||
+        error.message.includes("NetworkError")
+      ) {
+        errorMsg += "\n\n• Check if the backend is running and accessible";
+        errorMsg += `\n• Backend URL: ${api || "not configured"}`;
+        errorMsg += "\n• Check CORS settings on the backend";
+      } else if (
+        error.message.includes("Empty response") ||
+        error.message.includes("JSON")
+      ) {
+        errorMsg +=
+          "\n\n• The backend may have returned an empty or invalid response";
+        errorMsg += "\n• Check backend logs for errors";
+        errorMsg += `\n• Backend URL: ${api || "not configured"}`;
+      }
+
+      alert(errorMsg);
     }
   };
 

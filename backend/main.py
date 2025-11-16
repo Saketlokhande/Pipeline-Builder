@@ -1,7 +1,10 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, Request, status
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
+from fastapi.exceptions import RequestValidationError
 from pydantic import BaseModel
 from typing import List, Dict, Any, Optional
+import traceback
 
 app = FastAPI()
 
@@ -72,14 +75,32 @@ def is_dag(nodes: List[Node], edges: List[Edge]) -> bool:
 def read_root():
     return {'Ping': 'Pong'}
 
+@app.exception_handler(Exception)
+async def global_exception_handler(request: Request, exc: Exception):
+    """Handle all unhandled exceptions and return JSON response"""
+    return JSONResponse(
+        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+        content={
+            "detail": str(exc),
+            "message": "An internal server error occurred",
+            "type": type(exc).__name__
+        }
+    )
+
 @app.post('/pipelines/parse')
 def parse_pipeline(pipeline: PipelineRequest):
-    num_nodes = len(pipeline.nodes)
-    num_edges = len(pipeline.edges)
-    is_dag_result = is_dag(pipeline.nodes, pipeline.edges)
-    
-    return {
-        'num_nodes': num_nodes,
-        'num_edges': num_edges,
-        'is_dag': is_dag_result
-    }
+    try:
+        num_nodes = len(pipeline.nodes)
+        num_edges = len(pipeline.edges)
+        is_dag_result = is_dag(pipeline.nodes, pipeline.edges)
+        
+        return {
+            'num_nodes': num_nodes,
+            'num_edges': num_edges,
+            'is_dag': is_dag_result
+        }
+    except Exception as e:
+        # Log the error for debugging
+        print(f"Error in parse_pipeline: {str(e)}")
+        print(traceback.format_exc())
+        raise
