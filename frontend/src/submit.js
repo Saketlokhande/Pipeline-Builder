@@ -15,9 +15,20 @@ export const SubmitButton = () => {
 
   const handleSubmit = async () => {
     try {
+      // Check if API URL is configured
+      if (!api) {
+        throw new Error(
+          "API URL is not configured. Please set REACT_APP_API_URL environment variable."
+        );
+      }
+
       // const response = await fetch('http://localhost:8000/pipelines/parse', {
-      const apiUrl = api?.endsWith("/") ? api.slice(0, -1) : api;
-      const response = await fetch(`${apiUrl}/pipelines/parse`, {
+      const apiUrl = api.endsWith("/") ? api.slice(0, -1) : api;
+      const fullUrl = `${apiUrl}/pipelines/parse`;
+
+      console.log("Making request to:", fullUrl);
+
+      const response = await fetch(fullUrl, {
         // Done this to deploy on render, this env is only present in the production build
         method: "POST",
         headers: {

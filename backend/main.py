@@ -9,11 +9,12 @@ import traceback
 app = FastAPI()
 
 # Add CORS middleware to allow frontend to connect
+# Note: allow_credentials=True cannot be used with allow_origins=["*"]
+# For production, specify exact origins or set allow_credentials=False
 app.add_middleware(
     CORSMiddleware,
-    # allow_origins=["http://localhost:3000"],  # React default port
-    allow_origins=["*"],  # React default port
-    allow_credentials=True,
+    allow_origins=["*"],  # Allow all origins for deployment flexibility
+    allow_credentials=False,  # Set to False when using wildcard origins
     allow_methods=["*"],
     allow_headers=["*"],
 )
