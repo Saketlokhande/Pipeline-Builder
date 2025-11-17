@@ -27,6 +27,39 @@ export const SubmitButton = () => {
       const fullUrl = `${apiUrl}/pipelines/parse`;
 
       console.log("Making request to:", fullUrl);
+      console.log("Request payload:", {
+        nodes: nodes.length,
+        edges: edges.length,
+      });
+
+      // First, try to check if backend is alive with a health check
+      try {
+        const healthController = new AbortController();
+        const healthTimeout = setTimeout(() => healthController.abort(), 5000);
+
+        const healthCheck = await fetch(`${apiUrl}/`, {
+          method: "GET",
+          signal: healthController.signal,
+        });
+        clearTimeout(healthTimeout);
+
+        if (!healthCheck.ok) {
+          console.warn("Health check failed:", healthCheck.status);
+        } else {
+          const healthData = await healthCheck.json();
+          console.log("Backend health check OK:", healthData);
+        }
+      } catch (healthError) {
+        console.warn(
+          "Health check error (backend might be sleeping):",
+          healthError.message
+        );
+        // Continue anyway - the backend might wake up on the actual request
+      }
+
+      // Create abort controller for timeout
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout
 
       const response = await fetch(fullUrl, {
         // Done this to deploy on render, this env is only present in the production build
@@ -38,7 +71,10 @@ export const SubmitButton = () => {
           nodes: nodes,
           edges: edges,
         }),
+        signal: controller.signal,
       });
+
+      clearTimeout(timeoutId);
 
       // Get response text first (can only read body once)
       const text = await response.text();
@@ -115,13 +151,26 @@ ${
       let errorMsg = `Error submitting pipeline: ${error.message}`;
 
       // Add helpful hints based on error type
-      if (
-        error.message.includes("Failed to fetch") ||
-        error.message.includes("NetworkError")
-      ) {
-        errorMsg += "\n\n• Check if the backend is running and accessible";
+      if (error.name === "AbortError") {
+        errorMsg += "\n\nRequest timed out (30 seconds)";
+        errorMsg += "\n• Backend might be sleeping (Render free tier)";
+        errorMsg += "\n• First request after sleep can take 30-60 seconds";
+        errorMsg += "\n• Try again - subsequent requests will be faster";
         errorMsg += `\n• Backend URL: ${api || "not configured"}`;
-        errorMsg += "\n• Check CORS settings on the backend";
+      } else if (
+        error.message.includes("Failed to fetch") ||
+        error.message.includes("NetworkError") ||
+        error.name === "TypeError"
+      ) {
+        errorMsg += "\n\nPossible causes:";
+        errorMsg += "\n• Backend might be sleeping (Render free tier)";
+        errorMsg += "\n• Backend might not be running";
+        errorMsg += "\n• Network connectivity issue";
+        errorMsg += "\n• CORS configuration issue";
+        errorMsg += `\n• Backend URL: ${api || "not configured"}`;
+        errorMsg += "\n• Check browser console for more details";
+        errorMsg +=
+          "\n• Try accessing the backend URL directly in your browser";
       } else if (
         error.message.includes("Empty response") ||
         error.message.includes("JSON")

@@ -9,14 +9,35 @@ import traceback
 app = FastAPI()
 
 # Add CORS middleware to allow frontend to connect
-# Note: allow_credentials=True cannot be used with allow_origins=["*"]
-# For production, specify exact origins or set allow_credentials=False
+# Explicitly allow the frontend origin and common development origins
+# Note: To allow all origins, use allow_origins=["*"] but you cannot mix "*" with specific origins
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Allow all origins for deployment flexibility
-    allow_credentials=False,  # Set to False when using wildcard origins
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_origins=[
+        "https://pipeline-builder-1.onrender.com",
+        "http://localhost:3000",
+        "http://localhost:3001",
+        "http://127.0.0.1:3000",
+        "http://127.0.0.1:3001",
+    ],
+    allow_credentials=False,
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
+    allow_headers=[
+        "Accept",
+        "Accept-Language",
+        "Content-Language",
+        "Content-Type",
+        "Authorization",
+        "X-Requested-With",
+        "Origin",
+        "Referer",
+        "User-Agent",
+        "sec-ch-ua",
+        "sec-ch-ua-mobile",
+        "sec-ch-ua-platform",
+    ],
+    expose_headers=["*"],
+    max_age=3600,  # Cache preflight requests for 1 hour
 )
 
 class Node(BaseModel):
